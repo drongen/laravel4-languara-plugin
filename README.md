@@ -1,4 +1,4 @@
-Languara Plugin
+Languara Plugin for Laravel 4
 ========================
 
 <h3>Install</h3>
