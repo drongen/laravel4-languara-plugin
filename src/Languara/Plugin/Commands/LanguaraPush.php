@@ -60,7 +60,7 @@ class LanguaraPush extends Command {
             return $this->error($ex->getMessage());
         }
         
-		return $this->info('Command push run successfully!');
+		return $this->info('Content pushed to the server successfully!');
 	}
 
 	/**

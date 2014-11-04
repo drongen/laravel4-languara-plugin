@@ -60,7 +60,7 @@ class LanguaraPull extends Command {
             return $this->error($ex->getMessage());
         }
         
-		return $this->info('Command push run successfully!');
+		return $this->info('Content pulled from the server successuflly!');
 	}
 
 	/**
