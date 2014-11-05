@@ -45,4 +45,4 @@ to download your content from Languara to your app.
 $ php artisan languara:push
 </code></pre>
 
-to upload your content from your website to Languara.
+to upload your content from your app to Languara.
