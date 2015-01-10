@@ -10,6 +10,18 @@ class PluginServiceProvider extends ServiceProvider {
 	 * @var bool
 	 */
 	protected $defer = false;
+    
+    /**
+	 * Bootstrap the application events.
+	 *
+	 * @return void
+	 */
+	public function boot()
+	{
+		$this->package('languara/plugin');
+        
+        include __DIR__.'/routes.php';
+	}
 
 	/**
 	 * Register the service provider.
@@ -31,6 +43,7 @@ class PluginServiceProvider extends ServiceProvider {
             'languara.push',
             'languara.pull',
         ));
+        include __DIR__ . '/routes.php';
 	}
 
 	/**

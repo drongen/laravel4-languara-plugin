@@ -36,20 +36,8 @@ class LanguaraPull extends Command {
 	 * @return mixed
 	 */
 	public function fire()
-	{
-		$arr_conf           = \Config::get('plugin::conf');
-        $arr_endpoints      = \Config::get('plugin::endpoints');
-        $language_location  = \Config::get('plugin::language_location');
-
-        if (! $arr_conf || ! $arr_endpoints || ! $language_location)
-        {
-            return $this->error('Your configuration file is misconfigured, re-configure it and try again!');
-        }
-        
-        $obj_languara = new \Languara\Plugin\Library\Lib_Languara();
-        $obj_languara->conf                 = $arr_conf;
-        $obj_languara->endpoints            = $arr_endpoints;
-        $obj_languara->language_location    = $language_location;
+	{        
+        $obj_languara = new \Languara\Plugin\Library\LanguaraWrapper();
         
         try
         {

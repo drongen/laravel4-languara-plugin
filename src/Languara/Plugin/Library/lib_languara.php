@@ -1,4 +1,4 @@
-<?php namespace Languara\Plugin\Library;
+<?php
 
 class Lib_Languara
 {
@@ -34,11 +34,32 @@ class Lib_Languara
 		// sanity checks
 		if (! is_dir($this->language_location))
 		{
-            throw new \Exception('Language directory not found!');
+            throw new \Exception('ERROR: Language directory not found!'. $this->language_location);
 			return false;
 		}
-		
-		// get local locales, resource groups, and translations
+        
+        // get local translations
+        if (php_sapi_name() == "cli") {
+            print $this->color_text("Retrieving local data!", 'NOTICE'). PHP_EOL;
+            sleep(2);
+        }
+		$arr_translations = $this->retrive_local_translations();		
+        
+        // get project locales
+        if (php_sapi_name() == "cli") {
+            print $this->color_text("Pushing locales and translations to the Languara servers!", 'NOTICE'). PHP_EOL;
+            sleep(2);
+        }
+        
+        $endpoint_postfix = '';
+		if ($this->env == 'development') $endpoint_postfix = '_local';
+        
+		$this->fetch_endpoint_data('upload_translations'. $endpoint_postfix, $arr_translations, 'post', true);
+	}
+	
+    protected function retrive_local_translations()
+    {
+        // get local locales, resource groups, and translations
 		$dir_iterator = new \DirectoryIterator($this->language_location);		
 		$arr_locales = array();
 		
@@ -55,11 +76,11 @@ class Lib_Languara
 				}
 			}
 		}
-
-		$this->fetch_endpoint_data('upload_translations', $arr_locales, 'post', true);
-	}
-	
-	public function retrive_resource_groups_and_translations ($dir_path)
+        
+        return $arr_locales;
+    }
+    
+	protected function retrive_resource_groups_and_translations ($dir_path)
 	{
 		$dir_iterator = new \DirectoryIterator($dir_path);	
 		$arr_resource_groups = array();
@@ -67,14 +88,18 @@ class Lib_Languara
 		foreach ($dir_iterator as $file)
 		{            
 			// skip system files
-			if($file->getFilename() == '.' || $file->getFilename() == '..') continue;
-			if ($this->conf['platform'] == 'codeigniter') include ($file->getRealPath());
-			if ($this->conf['platform'] == 'fuelphp') $lang = include ($file->getRealPath());
+			if ($file->getFilename() == '.' || $file->getFilename() == '..' || $file->getFilename() == 'language_backup') continue;
+			if ($this->conf['storage_engine'] == 'php_assoc_array') include ($file->getRealPath());
+			if ($this->conf['storage_engine'] == 'php_array') $lang = include ($file->getRealPath());
             
+            // if file empty
 			if (! isset($lang)) continue;
             
-            // remove the _lang.php at the end of the file
-            $dir_name_filtered = strrev(preg_replace('/gnal_/', '', strrev($file->getBasename('.php')), 1));
+            // remove the suffix of the file
+            if ($this->conf['file_suffix'])
+            {
+                $dir_name_filtered = strrev(preg_replace('/'. strrev($this->conf['file_suffix']) .'/', '', strrev($file->getBasename('.php')), 1));
+            }
             
 			// add resource groups as keys
 			$arr_resource_groups[$dir_name_filtered] = $lang;
@@ -88,16 +113,22 @@ class Lib_Languara
 		// sanity checks
 		if (! is_dir($this->language_location))
 		{
-            throw new \Exception('Language directory not found! '. $this->language_location);
+            throw new \Exception('ERROR: Language directory not found, check the location of the language directory in the config file and try again!');
 			return false;
 		}
 		
 		if (! is_writable($this->language_location))
 		{
-            throw new \Exception('Language directory is not writable!');
+            throw new \Exception('ERROR: Language directory is not writable, make sure the proper permission are set!');
 			return false;
 		}
-		
+        
+		// back up local data
+        if (php_sapi_name() == "cli") {
+            print $this->color_text("Backing up local data!", 'NOTICE'). PHP_EOL;
+            sleep(2);
+        }
+        
 		// create back dir if it doesn't exist
 		$this->create_dir($this->language_location, 'language_backup');
 		
@@ -112,25 +143,55 @@ class Lib_Languara
 		$this->zip->close();
 		
 		// remove local translations
+        if (php_sapi_name() == "cli") {
+            print $this->color_text("Removing local files!", 'NOTICE'). PHP_EOL;
+            sleep(2);
+        }
 		$this->remove_local_translations($this->language_location);
 		
 		$endpoint_postfix = '';
 		if ($this->env == 'development') $endpoint_postfix = '_local';
 		
-		$this->arr_project_locales	= $this->fetch_endpoint_data('project_locale'. $endpoint_postfix, null, 'get', true);
-//		$this->arr_resource				= $this->fetch_endpoint_data('resource'. $endpoint_postfix, null, true);
-		$this->arr_resource_groups	= $this->fetch_endpoint_data('resource_group'. $endpoint_postfix, null, 'get', true);
-		$this->arr_translations		= $this->fetch_endpoint_data('translation'. $endpoint_postfix, null, 'get', true);
+        // get project locales
+        if (php_sapi_name() == "cli") {
+            print $this->color_text("Retrieving all languages from the server!", 'NOTICE'). PHP_EOL;
+            sleep(2);
+        }
+		$this->arr_project_locales = $this->fetch_endpoint_data('project_locale'. $endpoint_postfix, null, 'get', true);
 
 		if (!$this->arr_project_locales)
 		{
-            throw new \Exception('Failed to load project locales, or no locales defined for the project');
+            throw new \Exception('Project has no languages, add some languages on Languara and then try pulling your content!');
 			return false;
 		}
+        
+        // get project resource groups
+        if (php_sapi_name() == "cli") {
+            print $this->color_text("Retrieving all resource groups from the server!", 'NOTICE'). PHP_EOL;
+            sleep(2);
+        }
+		$this->arr_resource_groups = $this->fetch_endpoint_data('resource_group'. $endpoint_postfix, null, 'get', true);
+        
+        // get project translations
+        if (php_sapi_name() == "cli") {
+            print $this->color_text("Retrieving all translations from the server!", 'NOTICE'). PHP_EOL;
+            sleep(2);
+        }
+		$this->arr_translations	= $this->fetch_endpoint_data('translation'. $endpoint_postfix, null, 'get', true);
 		
-//		$this->_CI->load->helper('file');
+        // get project translations
+        if (php_sapi_name() == "cli") {
+            print $this->color_text("Adding content to local files!", 'NOTICE'). PHP_EOL;
+            sleep(2);
+        }
+		$this->add_translations_to_files();
 		
-		// process locale
+		return true;
+	}
+    
+    protected function add_translations_to_files()
+    {
+        // process locale
 		foreach ($this->arr_project_locales as $project_locale) 
 		{
 			$this->create_dir($this->language_location, strtolower($project_locale->iso_639_1));
@@ -155,15 +216,13 @@ class Lib_Languara
                 chmod($file_path, 0777);
 			}
 		}	
-		
-		return true;
-	}
+    }
 	
-	function fetch_endpoint_data($endpoint_name, $parameters = null, $method = 'get', $json_decode_ind = false) 
+	private function fetch_endpoint_data($endpoint_name, $parameters = null, $method = 'get', $json_decode_ind = false) 
     {
 		if (! isset($this->endpoints[$endpoint_name]))
 		{
-            throw new \Exception('Endpoint '. $endpoint_name .' not found!');
+            throw new \Exception('Endpoint '. $endpoint_name .' not found. Check your local configuration and make sure the endpoints array is correctly defined or just download a new config file from the server.');
 			return false;
 		}
 		
@@ -184,23 +243,38 @@ class Lib_Languara
 		}
         
 //		print "\n\nfetch_endpoint_data($endpoint_name)\n";
-//		print "\naccessing endpoint URL: $url\n";
+//		print "\naccessing endpoint URL: $url\n". PHP_EOL;
 //		print "CLIENT: GOT RESPONSE\n". $response ."\n";
 		$error = false;
 		if ($json_decode_ind)
         {            
             $result = json_decode($response);
+            $error_message_suffix = '';
             
-            if (!is_object($result))
+            // throw an error if the server doesn't return anything
+            if (! is_object($result))
             {
-                throw new \Exception('ERROR: There was a error processing your request, please try again or contact the administrators for more information!');
+                throw new \Exception('ERROR: There was a error processing your request, please try again. If that does not work contact the administrators for more information!');
             }
             
-            $result = current($result);
-            $error = array_key_exists('errors', $result);
+            // get the error messages if there are any
+            $messages = isset($result->meta) ? $result->meta : array();
+            $error = array_key_exists('errors', $messages);
+            
+            // if the server returns 1, then add a message sufix to clarify the error
+            if (isset($result->data) && ! is_object($result->data) && $result->data == 1)
+            {
+                $error_message_suffix = PHP_EOL .'Make sure your local config file is configured correctly. If you are not sure how to do that generate a new plugin files on Languara and replace the ones you have on your server at the moment!';
+            }
             
             // if the request faild throw an exception
-            if ($error) throw new \Exception('ERROR: '. current(current($result->errors)));
+            if ($error) throw new \Exception('Languara\'s servers responded with an error: '. PHP_EOL. current(current($messages->errors)) . $error_message_suffix);
+            
+            // if no errors, we need to extract the data
+            if (is_object($result))
+            {
+                $result = current($result);
+            }
             
         } 
         else 
@@ -211,7 +285,7 @@ class Lib_Languara
         return $result;
 	}
 	
-	function prepare_request_url($endpoint_name, $arr_params=null) 
+	private function prepare_request_url($endpoint_name, $arr_params=null) 
     {
 		$url = $this->endpoints[$endpoint_name]
 				."?project_api_key=".$this->conf['project_api_key']
@@ -249,15 +323,15 @@ class Lib_Languara
 		return $url;
 	}
 
-	function curl_get($url, $callback=false) {
+	private function curl_get($url, $callback=false) {
 		return $this->curl_doRequest('GET',$url,'NULL',$callback);
 	}
 
-	function curl_post($url, $vars, $callback=false) {
+	private function curl_post($url, $vars, $callback=false) {
 		return $this->curl_doRequest('POST',$url,$vars,$callback);
 	}
 	
-	function curl_doRequest($method, $url, $vars, $callback=false) 
+	private function curl_doRequest($method, $url, $vars, $callback=false) 
 	{	
 		if (!function_exists('curl_init')) throw new \Exception('CURL is not enabled for translation service, please enable curl and try again');
 		 
@@ -296,7 +370,7 @@ class Lib_Languara
 		}
 	}
 	
-	public function remove_local_translations($translations_path)
+	protected function remove_local_translations($translations_path)
 	{	
 		$dir_iterator = new \DirectoryIterator($translations_path);
 		
@@ -321,7 +395,7 @@ class Lib_Languara
 		}
 	}
 	
-	public function add_folder_to_zip($dir_path, $zip_path = null)
+	protected function add_folder_to_zip($dir_path, $zip_path = null)
 	{				
 		$dir_iterator = new \DirectoryIterator($dir_path);
 		
@@ -353,7 +427,7 @@ class Lib_Languara
 	 * @param string $dir_name
 	 * @return boolean
 	 */
-	public function create_dir ($dir_path, $dir_name)
+	protected function create_dir ($dir_path, $dir_name)
 	{
 		$dir_path = $dir_path. $dir_name;
 		
@@ -366,44 +440,65 @@ class Lib_Languara
 		return true;
 	}
     
-    public function get_file_header()
+    protected function get_file_header()
     {
         $header = null;
         
-        if ($this->conf['platform'] == 'codeigniter') $header = '<?php'. PHP_EOL;
+        if ($this->conf['storage_engine'] == 'php_assoc_array') $header = '<?php'. PHP_EOL;
         
-        if ($this->conf['platform'] == 'fuelphp') $header = '<?php return array('. PHP_EOL;
+        if ($this->conf['storage_engine'] == 'php_array') $header = '<?php return array('. PHP_EOL;
         
         if ($header === null) throw new \Exception ('ERROR: Storage engine is not supported!');
         
         return $header;
     }
     
-    public function get_file_footer()
+    protected function get_file_footer()
     {
         $footer = null;
         
-        if ($this->conf['platform'] == 'codeigniter') $footer = '';
+        if ($this->conf['storage_engine'] == 'php_assoc_array') $footer = '';
         
-        if ($this->conf['platform'] == 'fuelphp') $footer = ');';
+        if ($this->conf['storage_engine'] == 'php_array') $footer = ');';
         
         if ($footer === null) throw new \Exception ('ERROR: Storage engine is not supported!');
         
         return $footer;
     }
     
-    public function get_file_content($resource_cd, $translation_txt)
+    protected function get_file_content($resource_cd, $translation_txt)
     {
         $content = null;
         
-        if ($this->conf['platform'] == 'codeigniter') $content = '$lang[\''. $resource_cd .'\'] = \''. str_replace("'", "\\'",$translation_txt) .'\';'. PHP_EOL;
+        if ($this->conf['storage_engine'] == 'php_assoc_array') $content = '$lang[\''. $resource_cd .'\'] = \''. str_replace("'", "\\'",$translation_txt) .'\';'. PHP_EOL;
         
-        if ($this->conf['platform'] == 'fuelphp') $content = '\''. $resource_cd .'\' => \''. str_replace("'", "\\'",$translation_txt) .'\','. PHP_EOL;
+        if ($this->conf['storage_engine'] == 'php_array') $content = '\''. $resource_cd .'\' => \''. str_replace("'", "\\'",$translation_txt) .'\','. PHP_EOL;
         
         if ($content === null) throw new \Exception ('ERROR: Storage engine is not supported!');
         
         return $content;
     }
+    
+    public function color_text($text, $status)
+    {
+        $out = "";
+        switch ($status)
+        {
+            case "SUCCESS":
+                $out = "[0;32m"; //Green background
+                break;
+            case "FAILURE":
+                $out = "[0;31m"; //Red background
+                break;
+            case "NOTICE":
+                $out = "[1;33m"; //Red background
+                break;
+            default:
+            $out = "[0m"; //White background
+        }
+        
+        return chr(27) . "$out" . "$text" . chr(27) . "[0m";
+    }
 }
 
-/* End of file Lang_languara.php */
+/* End of file Lib_languara.php */
